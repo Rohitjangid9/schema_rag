@@ -175,7 +175,7 @@ class SchemaRAGPipeline:
 
         except Exception as e:
             print(f"Error: Error uploading to Qdrant: {e}")
-            print("  Make sure Qdrant is running on localhost:6333")
+            print("  Make sure Qdrant is running on localhost:6334")
             raise
 
     def step_5_test_retrieval(self, manager: QdrantManager):

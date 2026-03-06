@@ -6,6 +6,7 @@ Optimized for RAG retrieval with enhanced text combining
 import json
 import os
 import re
+from pathlib import Path
 from typing import List, Dict, Any, Optional
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
@@ -16,7 +17,7 @@ load_dotenv()
 
 
 class QdrantManager:
-    def __init__(self, host: str = "localhost", port: int = 6333, collection_name: str = "schema_metadata"):
+    def __init__(self, host: str = "localhost", port: int = 6334, collection_name: str = "schema_metadata"):
         self.host = host
         self.port = port
         self.collection_name = collection_name
@@ -39,6 +40,92 @@ class QdrantManager:
         print(f"✓ Connected to Qdrant at {host}:{port}")
         print(f"✓ Using NVIDIA embedding model: {self.embedding_model}")
         print(f"✓ Embedding dimension: {self.embedding_dim}")
+
+        # Validate collection health on startup
+        self.ensure_collection_ready()
+
+    def _is_collection_healthy(self) -> bool:
+        """Check if the collection exists and is not corrupted by doing a test scroll."""
+        try:
+            self.client.get_collection(self.collection_name)
+            # Probe with a small scroll to detect index corruption early
+            self.client.scroll(
+                collection_name=self.collection_name,
+                limit=1,
+                with_vectors=False,
+            )
+            return True
+        except Exception as e:
+            err_msg = str(e).lower()
+            if "not found" in err_msg or "doesn't exist" in err_msg:
+                return False  # Collection doesn't exist yet — not an error
+            if "panicked" in err_msg or "outputtoosmall" in err_msg or "internal error" in err_msg:
+                print(f"⚠️  Collection '{self.collection_name}' is corrupted: {e}")
+                return False
+            # Unknown error — assume unhealthy
+            print(f"⚠️  Collection health check failed: {e}")
+            return False
+
+    def _rebuild_from_saved_data(self):
+        """
+        Rebuild the Qdrant collection from saved metadata and summaries JSON files.
+        This is used for auto-recovery when the collection is corrupted.
+        """
+        # Resolve data directory relative to this file (core/) -> parent (backend/) -> data/
+        data_dir = Path(__file__).resolve().parent.parent / "data"
+        metadata_file = data_dir / "table_metadata.json"
+        summaries_file = data_dir / "table_summaries.json"
+        relationships_file = data_dir / "table_relationships.json"
+
+        if not metadata_file.exists() or not summaries_file.exists():
+            print("⚠️  Cannot auto-rebuild: metadata/summaries files not found in data/")
+            print(f"   Expected: {metadata_file}")
+            print(f"   Expected: {summaries_file}")
+            print("   Please re-run the pipeline: python core/pipeline.py")
+            return False
+
+        print("🔄 Auto-rebuilding collection from saved data...")
+        with open(metadata_file, "r", encoding="utf-8") as f:
+            metadata_list = json.load(f)
+        with open(summaries_file, "r", encoding="utf-8") as f:
+            summaries = json.load(f)
+
+        relationships = {}
+        if relationships_file.exists():
+            with open(relationships_file, "r", encoding="utf-8") as f:
+                relationships = json.load(f)
+
+        # Delete corrupted collection if it exists
+        try:
+            self.client.delete_collection(self.collection_name)
+        except Exception:
+            pass
+
+        # Create fresh collection
+        self.create_collection(recreate=False)
+
+        # Re-embed and upload
+        points = self.prepare_points(metadata_list, summaries, foreign_keys=relationships)
+        self.upload_points(points)
+        print(f"✅ Auto-rebuilt collection with {len(points)} points")
+        return True
+
+    def ensure_collection_ready(self):
+        """Ensure the collection exists and is healthy. Auto-recover if corrupted."""
+        if self._is_collection_healthy():
+            info = self.get_collection_info()
+            if info.get("points_count", 0) > 0:
+                print(f"✓ Collection '{self.collection_name}' is healthy ({info['points_count']} points)")
+                return
+            else:
+                print(f"ℹ️  Collection '{self.collection_name}' exists but is empty.")
+                # Try to rebuild from saved data
+                self._rebuild_from_saved_data()
+                return
+
+        # Collection is missing or corrupted — try auto-recovery
+        print(f"⚠️  Collection '{self.collection_name}' is missing or corrupted.")
+        self._rebuild_from_saved_data()
 
     def create_collection(self, recreate: bool = False):
         """Create a collection in Qdrant if it doesn't exist"""
@@ -295,7 +382,8 @@ class QdrantManager:
     
     def search(self, query: str, limit: int = 5, score_threshold: float = 0.0) -> List[Dict[str, Any]]:
         """
-        Search for similar tables using semantic search
+        Search for similar tables using semantic search.
+        Auto-recovers from corrupted collections by rebuilding from saved data.
 
         Args:
             query: Natural language query
@@ -305,7 +393,28 @@ class QdrantManager:
         # Use "query" type for search queries
         query_embedding = self.generate_embedding(query, input_type="query")
 
-        # Use query_points for newer qdrant-client versions
+        try:
+            results = self._execute_search(query_embedding, limit, score_threshold)
+        except Exception as e:
+            err_msg = str(e).lower()
+            if "panicked" in err_msg or "outputtoosmall" in err_msg or "internal error" in err_msg:
+                print(f"⚠️  Qdrant search failed due to corruption: {e}")
+                print("🔄 Attempting auto-recovery...")
+                if self._rebuild_from_saved_data():
+                    # Retry once after rebuild
+                    results = self._execute_search(query_embedding, limit, score_threshold)
+                else:
+                    print("❌ Auto-recovery failed. Please re-run the pipeline.")
+                    return []
+            else:
+                raise
+
+        return self._apply_lexical_rerank(query, results)
+
+    def _execute_search(
+        self, query_embedding: List[float], limit: int, score_threshold: float
+    ) -> List[Dict[str, Any]]:
+        """Execute the actual Qdrant search query."""
         from qdrant_client.models import ScoredPoint
 
         results = self.client.query_points(
@@ -318,7 +427,7 @@ class QdrantManager:
         # Handle QueryResponse object
         points = results.points if hasattr(results, 'points') else results
 
-        results = [
+        return [
             {
                 "table_name": point.payload["table_name"],
                 "module": point.payload["module"],
@@ -331,8 +440,6 @@ class QdrantManager:
             }
             for point in points
         ]
-
-        return self._apply_lexical_rerank(query, results)
 
     def search_with_context(self, query: str, limit: int = 5) -> Dict[str, Any]:
         """

@@ -20,7 +20,7 @@ class AppConfig:
     schema_file: Path = field(default_factory=Path)
     business_db_path: Path = field(default_factory=Path)
     qdrant_host: str = "localhost"
-    qdrant_port: int = 6333
+    qdrant_port: int = 6334
     qdrant_collection: str = "schema_metadata"
 
     @classmethod
@@ -35,7 +35,7 @@ class AppConfig:
             schema_file=backend_dir / "data" / "erp_schema_dump.sql",
             business_db_path=backend_dir / "data" / "erp_data.db",
             qdrant_host=os.getenv("QDRANT_HOST", "localhost"),
-            qdrant_port=int(os.getenv("QDRANT_PORT", "6333")),
+            qdrant_port=int(os.getenv("QDRANT_PORT", "6334")),
             qdrant_collection=os.getenv("QDRANT_COLLECTION", "schema_metadata"),
         )
 
