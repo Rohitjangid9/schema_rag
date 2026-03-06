@@ -26,14 +26,15 @@ class QueryExecutor:
 
     def validate_query(self, sql_query: str) -> tuple:
         """Validate SQL query for safety"""
+        import re
         dangerous_keywords = ["DROP", "DELETE", "UPDATE", "INSERT", "CREATE", "ALTER"]
-        sql_upper = sql_query.upper()
 
         for keyword in dangerous_keywords:
-            if keyword in sql_upper:
+            pattern = re.compile(rf"\b{keyword}\b", re.IGNORECASE)
+            if pattern.search(sql_query):
                 return False, f"{keyword} operation not allowed"
 
-        if "SELECT" not in sql_upper:
+        if not re.search(r"\bSELECT\b", sql_query, re.IGNORECASE):
             return False, "Query must be a SELECT statement"
 
         return True, None

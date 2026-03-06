@@ -1,12 +1,13 @@
-"""
-Result Formatter: Format raw query results into human-readable answers
-Uses NVIDIA Llama 8B to convert data into natural language
-"""
+"""Result Formatter: format query results with a YAML-backed prompt."""
 import os
-import json
-from typing import List, Dict, Any
+from typing import Any, Dict, List, Optional
 from openai import OpenAI
 from dotenv import load_dotenv
+
+try:
+    from prompt_loader import PromptLoader
+except ImportError:
+    from core.prompt_loader import PromptLoader
 
 load_dotenv()
 
@@ -14,16 +15,18 @@ load_dotenv()
 class ResultFormatter:
     """Formats query results into human-readable answers"""
 
-    def __init__(self):
+    def __init__(self, prompt_loader: Optional[PromptLoader] = None, prompt_name: str = "result_formatter"):
         api_key = os.getenv("NVIDIA_API_KEY")
         if not api_key:
             raise ValueError("NVIDIA_API_KEY not found in environment")
 
         self.client = OpenAI(
             api_key=api_key,
-            base_url="https://integrate.api.nvidia.com/v1"
+            base_url=os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
         )
-        self.model = "meta/llama-3.1-8b-instruct"
+        self.model = os.getenv("NVIDIA_FORMATTER_MODEL", "meta/llama-3.1-8b-instruct")
+        self.prompt_loader = prompt_loader or PromptLoader()
+        self.prompt_name = prompt_name
         self.last_used_fallback = False
         self.last_error = None
 
@@ -37,16 +40,11 @@ class ResultFormatter:
 
         data_summary = self._summarize_data(rows, columns)
 
-        prompt = f"""You are a helpful data analyst. Given the following query results, provide a clear and concise answer to the user's question.
-
-USER QUESTION: {query}
-
-QUERY RESULTS:
-{data_summary}
-
-Provide a natural language answer that directly answers the question.
-
-ANSWER:"""
+        prompt = self.prompt_loader.render_prompt(
+            self.prompt_name,
+            query=query,
+            data_summary=data_summary,
+        )
 
         try:
             response = self.client.chat.completions.create(

@@ -1,0 +1,35 @@
+name: sql_generation
+version: v1
+description: Generate SQLite-safe SQL from schema context and user question.
+input_variables:
+  - schemas_text
+  - user_query
+  - golden_examples_text
+  - table_selection_notes
+template: |
+  You are an expert SQL developer. Given the following database schemas, write a SQL query to answer the user's question.
+
+  IMPORTANT RULES:
+  1. Only use the tables provided below
+  2. Use proper JOINs to connect related tables
+  3. Use WHERE clauses for filtering
+  4. Use GROUP BY and aggregate functions (SUM, COUNT, AVG) when needed
+  5. Return only the SQL query, no explanations
+  6. Use SQLite syntax
+  7. Do NOT use CREATE, DROP, DELETE, UPDATE, or INSERT statements
+  8. Do NOT use subqueries unless necessary
+  9. Limit results to 1000 rows
+  10. For row-count questions (for example: how many, count, total number), prefer COUNT(*) over COUNT(id) unless the user explicitly asks for non-null values in a specific column
+
+  TABLE SELECTION NOTES:
+  {table_selection_notes}
+
+  RELEVANT PAST EXAMPLES:
+  {golden_examples_text}
+
+  DATABASE SCHEMAS:
+  {schemas_text}
+
+  USER QUESTION: {user_query}
+
+  SQL QUERY:

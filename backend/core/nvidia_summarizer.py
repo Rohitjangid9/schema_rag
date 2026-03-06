@@ -20,7 +20,8 @@ class NVIDIASummarizer:
 
         self.client = OpenAI(
             base_url="https://integrate.api.nvidia.com/v1",
-            api_key=self.api_key
+            api_key=self.api_key,
+            timeout=10.0
         )
         self.model = "meta/llama-3.1-8b-instruct"
 
@@ -206,10 +207,10 @@ Now write the summary for {table_name}:"""
             try:
                 summary = self.generate_summary(metadata, table_fks)
                 summaries[table_name] = summary
-                print(f"✓")
+                print(f"Done")
                 print(f"           → {summary[:80]}...")
             except Exception as e:
-                print(f"✗ Error: {e}")
+                print(f"Error: {e}")
                 summaries[table_name] = self._generate_fallback_summary(metadata)
 
             # Small delay to avoid rate limiting
@@ -221,8 +222,8 @@ Now write the summary for {table_name}:"""
             json.dump(summaries, f, indent=2, ensure_ascii=False)
 
         print(f"\n{'='*60}")
-        print(f"✓ Summaries saved to {output_file}")
-        print(f"✓ Total tables processed: {len(summaries)}")
+        print(f"Summaries saved to {output_file}")
+        print(f"Total tables processed: {len(summaries)}")
         print(f"{'='*60}\n")
 
         return summaries
@@ -250,5 +251,5 @@ if __name__ == "__main__":
     summarizer = NVIDIASummarizer()
     summaries = summarizer.generate_summaries_batch(metadata_list, args.output)
 
-    print(f"\n✓ Generated {len(summaries)} RAG-optimized summaries")
+    print(f"\nGenerated {len(summaries)} RAG-optimized summaries")
 

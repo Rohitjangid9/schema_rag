@@ -70,6 +70,45 @@ class ChatDebugLogger:
         ])
         self._add_section("Graph Expansion", body)
 
+    def add_golden_examples(self, examples: List[Dict[str, Any]]):
+        if not examples:
+            self._add_section("Golden Query Retrieval", "- Retrieved examples: `0`")
+            return
+
+        lines = [f"- Retrieved examples: `{len(examples)}`", ""]
+        for idx, example in enumerate(examples, 1):
+            tables = ", ".join(example.get("tables_used") or []) or "None"
+            lines.extend([
+                f"### Example {idx}",
+                f"- Similarity score: `{example.get('score', 'N/A')}`",
+                f"- Query: `{example.get('query', '')}`",
+                f"- Tables: `{tables}`",
+                "```sql",
+                example.get("sql_query", ""),
+                "```",
+                "",
+            ])
+        self._add_section("Golden Query Retrieval", "\n".join(lines))
+
+    def add_pruning(
+        self,
+        original_tables: List[str],
+        selected_tables: List[str],
+        dropped_tables: List[str],
+        reasoning: Dict[str, str],
+        max_tables: int,
+    ):
+        lines = [
+            f"- Max tables allowed: `{max_tables}`",
+            f"- Original tables ({len(original_tables)}): `{', '.join(original_tables) or 'None'}`",
+            f"- Selected tables ({len(selected_tables)}): `{', '.join(selected_tables) or 'None'}`",
+            f"- Dropped tables ({len(dropped_tables)}): `{', '.join(dropped_tables) or 'None'}`",
+            "",
+        ]
+        for table in selected_tables:
+            lines.append(f"- `{table}` → {reasoning.get(table, 'kept')}")
+        self._add_section("Deterministic Context Pruning", "\n".join(lines))
+
     def add_prompt(
         self,
         prompt: str,
@@ -110,6 +149,18 @@ class ChatDebugLogger:
         if error:
             lines.append(f"- Validation error: `{error}`")
         self._add_section("SQL Validation", "\n".join(lines))
+
+    def add_repair_attempt(self, stage: str, attempt: int, error: Optional[str], repaired_sql: str):
+        body = "\n".join([
+            f"- Stage: `{stage}`",
+            f"- Attempt: `{attempt}`",
+            f"- Trigger error: `{error or 'None'}`",
+            "",
+            "```sql",
+            repaired_sql or "",
+            "```",
+        ])
+        self._add_section("SQL Repair Attempt", body)
 
     def add_execution(self, execution_result: Dict[str, Any]):
         rows = execution_result.get("rows", [])

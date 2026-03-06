@@ -21,9 +21,9 @@ class SQLGenerator:
 
         self.client = OpenAI(
             api_key=api_key,
-            base_url="https://integrate.api.nvidia.com/v1"
+            base_url=os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
         )
-        self.model = "meta/llama-3.1-70b-instruct"
+        self.model = os.getenv("NVIDIA_SQL_MODEL", "meta/llama-3.1-70b-instruct")
 
     def generate_sql(self, prompt: str, max_tokens: int = 512) -> str:
         """
@@ -94,21 +94,24 @@ class SQLGenerator:
         Returns:
             (is_valid, error_message)
         """
-        # Check for dangerous operations
+        # Check for dangerous operations using word boundaries
         dangerous_keywords = ["DROP", "DELETE", "UPDATE", "INSERT", "CREATE", "ALTER"]
 
-        sql_upper = sql_query.upper()
-
         for keyword in dangerous_keywords:
-            if keyword in sql_upper:
-                # Allow CREATE TABLE in schema definitions, but not in queries
-                if keyword == "CREATE" and "CREATE TABLE" in sql_upper:
-                    return False, f"CREATE TABLE not allowed in queries"
+            # Use regex word boundaries to avoid matching substrings like "created_by"
+            pattern = re.compile(rf"\b{keyword}\b", re.IGNORECASE)
+            
+            if pattern.search(sql_query):
+                # Allow CREATE TABLE in schema definitions, but not in general queries
+                if keyword == "CREATE" and re.search(r"\bCREATE\s+TABLE\b", sql_query, re.IGNORECASE):
+                    return False, "CREATE TABLE not allowed in queries"
                 elif keyword != "CREATE":
+                    return False, f"{keyword} operation not allowed"
+                else:
                     return False, f"{keyword} operation not allowed"
 
         # Check for SELECT statement
-        if "SELECT" not in sql_upper:
+        if not re.search(r"\bSELECT\b", sql_query, re.IGNORECASE):
             return False, "Query must be a SELECT statement"
 
         return True, None

@@ -83,7 +83,7 @@ class SchemaRAGPipeline:
             return summaries
 
         except Exception as e:
-            print(f"✗ Error generating summaries: {e}")
+            print(f"Error: Error generating summaries: {e}")
             print("  Using fallback summaries...")
             return self._generate_fallback_summaries(metadata)
 
@@ -136,7 +136,7 @@ class SchemaRAGPipeline:
         with open(self.merged_file, 'w', encoding='utf-8') as f:
             json.dump(merged_data, f, indent=2, ensure_ascii=False)
 
-        print(f"✓ Merged JSON saved to {self.merged_file}")
+        print(f"Done: Merged JSON saved to {self.merged_file}")
         print(f"  Contains: metadata + AI summaries + relationships")
 
         return merged_data
@@ -166,7 +166,7 @@ class SchemaRAGPipeline:
             manager.upload_points(points)
 
             info = manager.get_collection_info()
-            print(f"\n✓ Collection Info:")
+            print(f"\nDone: Collection Info:")
             print(f"    Name: {info['name']}")
             print(f"    Points: {info['points_count']}")
             print(f"    Status: {info['status']}")
@@ -174,7 +174,7 @@ class SchemaRAGPipeline:
             return manager
 
         except Exception as e:
-            print(f"✗ Error uploading to Qdrant: {e}")
+            print(f"Error: Error uploading to Qdrant: {e}")
             print("  Make sure Qdrant is running on localhost:6333")
             raise
 
@@ -247,7 +247,7 @@ class SchemaRAGPipeline:
             print("="*70)
 
         except Exception as e:
-            print(f"\n✗ Pipeline failed: {e}")
+            print(f"\nError: Pipeline failed: {e}")
             import traceback
             traceback.print_exc()
             sys.exit(1)

@@ -149,7 +149,7 @@ class TableMetadataExtractor:
             metadata = self.get_table_metadata(table_name, include_sample)
             metadata_list.append(metadata)
             fk_count = len(metadata["foreign_keys"])
-            print(f"✓ ({metadata['column_count']} cols, {fk_count} FKs)")
+            print(f"Done: ({metadata['column_count']} cols, {fk_count} FKs)")
 
         return metadata_list
 
@@ -177,14 +177,14 @@ class TableMetadataExtractor:
         """Save metadata to JSON file"""
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(metadata_list, f, indent=2, ensure_ascii=False)
-        print(f"\n✓ Metadata saved to {output_file}")
+        print(f"\nDone: Metadata saved to {output_file}")
 
     def save_relationships_to_json(self, output_file: str = "table_relationships.json"):
         """Save relationship graph to JSON file"""
         graph = self.extract_relationship_graph()
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(graph, f, indent=2, ensure_ascii=False)
-        print(f"✓ Relationships saved to {output_file}")
+        print(f"Done: Relationships saved to {output_file}")
         return graph
 
     def close(self):

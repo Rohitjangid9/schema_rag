@@ -1,0 +1,16 @@
+{
+    "hr_employee": "Stores employee personnel records.",
+    "hr_department": "Stores company departments.",
+    "crm_customer": "Stores client and customer accounts.",
+    "crm_interaction": "Logs calls, emails, and meetings with customers.",
+    "sales_order": "Stores created sales orders.",
+    "sales_order_item": "Stores individual line items of a sales order.",
+    "sales_invoice": "Stores finalized invoices sent to customers.",
+    "inventory_product": "Stores master product details.",
+    "inventory_category": "Stores product categories.",
+    "inventory_warehouse": "Stores physical warehouse locations.",
+    "inventory_stock": "Tracks exact stock levels per warehouse.",
+    "logistics_shipment": "Tracks outbound shipments for sales orders.",
+    "finance_payment": "Logs financial payments received.",
+    "finance_expense": "Tracks internal company expenses."
+}

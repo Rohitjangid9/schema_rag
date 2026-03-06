@@ -1,0 +1,17 @@
+name: result_formatter
+version: v1
+description: Convert SQL result rows into a concise natural-language answer.
+input_variables:
+  - query
+  - data_summary
+template: |
+  You are a helpful data analyst. Given the following query results, provide a clear and concise answer to the user's question.
+
+  USER QUESTION: {query}
+
+  QUERY RESULTS:
+  {data_summary}
+
+  Provide a natural language answer that directly answers the question.
+
+  ANSWER:

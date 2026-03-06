@@ -1,111 +1,249 @@
-import random
+import json
 
-# --- CONFIGURATION ---
-MODULES = ['sales', 'hr', 'inventory', 'finance', 'crm', 'logistics']
-ENTITIES = {
-    'sales': ['order', 'quote', 'invoice', 'lead', 'opportunity', 'contract', 'refund', 'forecast'],
-    'hr': ['employee', 'department', 'payroll', 'benefit', 'attendance', 'candidate', 'review', 'training'],
-    'inventory': ['product', 'warehouse', 'stock_movement', 'supplier', 'purchase_order', 'category', 'batch'],
-    'finance': ['ledger', 'asset', 'tax_record', 'budget', 'expense', 'revenue', 'bank_account'],
-    'crm': ['customer', 'ticket', 'interaction', 'survey', 'loyalty_point', 'campaign'],
-    'logistics': ['shipment', 'route', 'vehicle', 'driver', 'delivery', 'customs_entry']
+# --- REALISTIC ERP SCHEMA DEFINITION ---
+SCHEMA_DEFINITION = {
+    # ------------------- HR MODULE -------------------
+    "hr_employee": {
+        "columns": [
+            "id INTEGER PRIMARY KEY AUTOINCREMENT",
+            "first_name VARCHAR(50)",
+            "last_name VARCHAR(50)",
+            "email VARCHAR(100)",
+            "department_id INT",
+            "hire_date DATE",
+            "salary DECIMAL(10,2)",
+            "status VARCHAR(20)"
+        ],
+        "foreign_keys": [
+            "FOREIGN KEY (department_id) REFERENCES hr_department(id)"
+        ],
+        "description": "Stores employee personnel records."
+    },
+    "hr_department": {
+        "columns": [
+            "id INTEGER PRIMARY KEY AUTOINCREMENT",
+            "name VARCHAR(100)",
+            "manager_id INT"
+        ],
+        "foreign_keys": [
+            "FOREIGN KEY (manager_id) REFERENCES hr_employee(id)"
+        ],
+        "description": "Stores company departments."
+    },
+
+    # ------------------- CRM MODULE -------------------
+    "crm_customer": {
+        "columns": [
+            "id INTEGER PRIMARY KEY AUTOINCREMENT",
+            "company_name VARCHAR(150)",
+            "contact_name VARCHAR(100)",
+            "email VARCHAR(100)",
+            "phone VARCHAR(50)",
+            "industry VARCHAR(50)",
+            "account_manager_id INT",
+            "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        ],
+        "foreign_keys": [
+            "FOREIGN KEY (account_manager_id) REFERENCES hr_employee(id)"
+        ],
+        "description": "Stores client and customer accounts."
+    },
+    "crm_interaction": {
+        "columns": [
+            "id INTEGER PRIMARY KEY AUTOINCREMENT",
+            "customer_id INT",
+            "employee_id INT",
+            "interaction_type VARCHAR(50)",
+            "interaction_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+            "notes TEXT"
+        ],
+        "foreign_keys": [
+            "FOREIGN KEY (customer_id) REFERENCES crm_customer(id)",
+            "FOREIGN KEY (employee_id) REFERENCES hr_employee(id)"
+        ],
+        "description": "Logs calls, emails, and meetings with customers."
+    },
+
+    # ------------------- SALES MODULE -------------------
+    "sales_order": {
+        "columns": [
+            "id INTEGER PRIMARY KEY AUTOINCREMENT",
+            "ref_code VARCHAR(20)",
+            "customer_id INT",
+            "sales_rep_id INT",
+            "order_date DATE",
+            "status VARCHAR(20)",
+            "total_amount DECIMAL(10,2)"
+        ],
+        "foreign_keys": [
+            "FOREIGN KEY (customer_id) REFERENCES crm_customer(id)",
+            "FOREIGN KEY (sales_rep_id) REFERENCES hr_employee(id)"
+        ],
+        "description": "Stores created sales orders."
+    },
+    "sales_order_item": {
+        "columns": [
+            "id INTEGER PRIMARY KEY AUTOINCREMENT",
+            "order_id INT",
+            "product_id INT",
+            "quantity INT",
+            "unit_price DECIMAL(10,2)",
+            "discount DECIMAL(5,2)"
+        ],
+        "foreign_keys": [
+            "FOREIGN KEY (order_id) REFERENCES sales_order(id)",
+            "FOREIGN KEY (product_id) REFERENCES inventory_product(id)"
+        ],
+        "description": "Stores individual line items of a sales order."
+    },
+    "sales_invoice": {
+        "columns": [
+            "id INTEGER PRIMARY KEY AUTOINCREMENT",
+            "order_id INT",
+            "customer_id INT",
+            "invoice_date DATE",
+            "due_date DATE",
+            "amount DECIMAL(10,2)",
+            "status VARCHAR(20)"
+        ],
+        "foreign_keys": [
+            "FOREIGN KEY (order_id) REFERENCES sales_order(id)",
+            "FOREIGN KEY (customer_id) REFERENCES crm_customer(id)"
+        ],
+        "description": "Stores finalized invoices sent to customers."
+    },
+
+    # ------------------- INVENTORY MODULE -------------------
+    "inventory_product": {
+        "columns": [
+            "id INTEGER PRIMARY KEY AUTOINCREMENT",
+            "sku VARCHAR(50)",
+            "name VARCHAR(150)",
+            "category_id INT",
+            "unit_cost DECIMAL(10,2)",
+            "selling_price DECIMAL(10,2)",
+            "stock_quantity INT"
+        ],
+        "foreign_keys": [
+            "FOREIGN KEY (category_id) REFERENCES inventory_category(id)"
+        ],
+        "description": "Stores master product details."
+    },
+    "inventory_category": {
+        "columns": [
+            "id INTEGER PRIMARY KEY AUTOINCREMENT",
+            "name VARCHAR(100)",
+            "description TEXT"
+        ],
+        "foreign_keys": [],
+        "description": "Stores product categories."
+    },
+    "inventory_warehouse": {
+        "columns": [
+            "id INTEGER PRIMARY KEY AUTOINCREMENT",
+            "name VARCHAR(100)",
+            "location VARCHAR(200)",
+            "manager_id INT"
+        ],
+        "foreign_keys": [
+            "FOREIGN KEY (manager_id) REFERENCES hr_employee(id)"
+        ],
+        "description": "Stores physical warehouse locations."
+    },
+    "inventory_stock": {
+        "columns": [
+            "id INTEGER PRIMARY KEY AUTOINCREMENT",
+            "product_id INT",
+            "warehouse_id INT",
+            "quantity INT",
+            "last_restock_date DATE"
+        ],
+        "foreign_keys": [
+            "FOREIGN KEY (product_id) REFERENCES inventory_product(id)",
+            "FOREIGN KEY (warehouse_id) REFERENCES inventory_warehouse(id)"
+        ],
+        "description": "Tracks exact stock levels per warehouse."
+    },
+
+    # ------------------- LOGISTICS MODULE -------------------
+    "logistics_shipment": {
+        "columns": [
+            "id INTEGER PRIMARY KEY AUTOINCREMENT",
+            "order_id INT",
+            "warehouse_id INT",
+            "carrier VARCHAR(100)",
+            "tracking_number VARCHAR(100)",
+            "shipment_date DATE",
+            "estimated_delivery DATE",
+            "status VARCHAR(20)"
+        ],
+        "foreign_keys": [
+            "FOREIGN KEY (order_id) REFERENCES sales_order(id)",
+            "FOREIGN KEY (warehouse_id) REFERENCES inventory_warehouse(id)"
+        ],
+        "description": "Tracks outbound shipments for sales orders."
+    },
+
+    # ------------------- FINANCE MODULE -------------------
+    "finance_payment": {
+        "columns": [
+            "id INTEGER PRIMARY KEY AUTOINCREMENT",
+            "invoice_id INT",
+            "customer_id INT",
+            "payment_date DATE",
+            "amount DECIMAL(10,2)",
+            "payment_method VARCHAR(50)",
+            "status VARCHAR(20)"
+        ],
+        "foreign_keys": [
+            "FOREIGN KEY (invoice_id) REFERENCES sales_invoice(id)",
+            "FOREIGN KEY (customer_id) REFERENCES crm_customer(id)"
+        ],
+        "description": "Logs financial payments received."
+    },
+    "finance_expense": {
+        "columns": [
+            "id INTEGER PRIMARY KEY AUTOINCREMENT",
+            "employee_id INT",
+            "department_id INT",
+            "expense_date DATE",
+            "amount DECIMAL(10,2)",
+            "category VARCHAR(50)",
+            "description TEXT",
+            "status VARCHAR(20)"
+        ],
+        "foreign_keys": [
+            "FOREIGN KEY (employee_id) REFERENCES hr_employee(id)",
+            "FOREIGN KEY (department_id) REFERENCES hr_department(id)"
+        ],
+        "description": "Tracks internal company expenses."
+    }
 }
 
-# Standard columns that every table gets
-BASE_COLS = [
-    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-    "updated_at TIMESTAMP",
-    "is_active BOOLEAN DEFAULT TRUE",
-    "created_by INT" # Assume connection to a user table
-]
+# --- GENERATION ---
+table_summaries = {}
 
 sql_statements = []
-
-# --- HELPER TO CREATE SQL ---
-def create_table_sql(table_name, columns, foreign_keys=[]):
-    cols_str = ",\n    ".join(columns + BASE_COLS)
-    fk_str = ""
-    if foreign_keys:
-        fk_str = ",\n    " + ",\n    ".join(foreign_keys)
+for index, (table_name, details) in enumerate(SCHEMA_DEFINITION.items()):
+    cols_str = ",\n    ".join(details["columns"])
+    if details["foreign_keys"]:
+        fk_str = ",\n    " + ",\n    ".join(details["foreign_keys"])
+    else:
+        fk_str = ""
     
-    return f"CREATE TABLE IF NOT EXISTS {table_name} (\n    id SERIAL PRIMARY KEY,\n    {cols_str}{fk_str}\n);"
+    table_sql = f"CREATE TABLE IF NOT EXISTS {table_name} (\n    {cols_str}{fk_str}\n);"
+    sql_statements.append(table_sql)
+    
+    # Generate simplified metadata mappings for downstream use
+    table_summaries[table_name] = details["description"]
 
-# --- MAIN GENERATION LOOP ---
-print("Generating Schema...")
+final_script = "\n\n".join(sql_statements)
 
-# 1. Create a Global 'Users' table first (so everyone can link to it)
-sql_statements.append(create_table_sql("global_users", ["username VARCHAR(50)", "email VARCHAR(100)"]))
-
-generated_tables = []
-
-for module, entities in ENTITIES.items():
-    for entity in entities:
-        # Construct Main Table Name (e.g., sales_orders)
-        main_table = f"{module}_{entity}"
-        generated_tables.append(main_table)
-        
-        # Define random realistic columns
-        main_cols = [
-            f"ref_code VARCHAR(20)",
-            f"status VARCHAR(20)",
-            f"description TEXT",
-            f"total_amount DECIMAL(10,2)"
-        ]
-        
-        # Create the MAIN Table
-        sql_statements.append(create_table_sql(main_table, main_cols))
-        
-        # --- THE MULTIPLIER (Create Satellite Tables) ---
-        
-        # A. Details Table (1-to-Many) - Connects back to Main Table
-        # e.g., sales_order_details
-        det_table = f"{main_table}_detail"
-        det_cols = ["item_name VARCHAR(100)", "quantity INT", "price_per_unit DECIMAL"]
-        det_fk = [f"CONSTRAINT fk_{det_table}_main FOREIGN KEY (parent_id) REFERENCES {main_table}(id)"]
-        # Add parent_id column
-        det_cols.append("parent_id INT") 
-        sql_statements.append(create_table_sql(det_table, det_cols, det_fk))
-
-        # B. History/Audit Table (Log changes)
-        hist_table = f"{main_table}_history"
-        hist_cols = ["change_log TEXT", "changed_by INT", "parent_id INT"]
-        hist_fk = [f"CONSTRAINT fk_{hist_table}_main FOREIGN KEY (parent_id) REFERENCES {main_table}(id)"]
-        sql_statements.append(create_table_sql(hist_table, hist_cols, hist_fk))
-
-        # C. Comments/Notes Table
-        note_table = f"{main_table}_comment"
-        note_cols = ["comment_text TEXT", "is_private BOOLEAN", "parent_id INT"]
-        note_fk = [f"CONSTRAINT fk_{note_table}_main FOREIGN KEY (parent_id) REFERENCES {main_table}(id)"]
-        sql_statements.append(create_table_sql(note_table, note_cols, note_fk))
-        
-        # D. Attachments Table
-        att_table = f"{main_table}_attachment"
-        att_cols = ["file_url VARCHAR(255)", "file_type VARCHAR(50)", "parent_id INT"]
-        att_fk = [f"CONSTRAINT fk_{att_table}_main FOREIGN KEY (parent_id) REFERENCES {main_table}(id)"]
-        sql_statements.append(create_table_sql(att_table, att_cols, att_fk))
-
-# --- CROSS-LINKING (Making it complex!) ---
-# Randomly link tables to simulate complex ERP relationships
-# e.g. Link 'sales_order' to 'crm_customer'
-# NOTE: SQLite doesn't support ALTER TABLE ADD CONSTRAINT, so we skip this for now
-# If using PostgreSQL/MySQL, uncomment the code below
-extra_links = []
-# sales_tables = [t for t in generated_tables if t.startswith('sales_')]
-# crm_tables = [t for t in generated_tables if t.startswith('crm_')]
-#
-# for sales_t in sales_tables:
-#     if crm_tables:
-#         target = random.choice(crm_tables)
-#         # Alter table to add foreign key (PostgreSQL/MySQL only)
-#         alter_sql = f"ALTER TABLE {sales_t} ADD COLUMN linked_{target}_id INT;"
-#         alter_sql += f"\nALTER TABLE {sales_t} ADD CONSTRAINT fk_{sales_t}_link FOREIGN KEY (linked_{target}_id) REFERENCES {target}(id);"
-#         extra_links.append(alter_sql)
-
-# --- OUTPUT ---
-final_script = "\n\n".join(sql_statements + extra_links)
-
-# Write to file
 with open("erp_schema_dump.sql", "w") as f:
     f.write(final_script)
 
-print(f"Successfully generated 'erp_schema_dump.sql' with approx {len(sql_statements)} tables.")
+# Also dump a summary JSON for reference if needed
+with open("schema_logic.json", "w") as f:
+    json.dump(table_summaries, f, indent=4)
+
+print(f"Successfully generated connected schema 'erp_schema_dump.sql' with {len(sql_statements)} tables.")

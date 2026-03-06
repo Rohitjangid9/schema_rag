@@ -1,17 +1,27 @@
-"""
-Prompt Builder: Extract schemas and build SQL generation prompts
-Constructs context-aware prompts for Llama 70B to generate SQL queries
-"""
+"""Prompt Builder: extract schemas and build SQL prompts from YAML templates."""
 import re
-from typing import List, Dict, Any
 from pathlib import Path
+from typing import Dict, List, Optional
+
+try:
+    from prompt_loader import PromptLoader
+except ImportError:
+    from core.prompt_loader import PromptLoader
 
 
 class PromptBuilder:
     """Builds SQL generation prompts with relevant table schemas"""
     
-    def __init__(self, schema_file: str = "data/erp_schema_dump.sql"):
-        self.schema_file = schema_file
+    def __init__(
+        self,
+        schema_file: Optional[str] = None,
+        prompt_loader: Optional[PromptLoader] = None,
+        prompt_name: str = "sql_generation",
+    ):
+        backend_dir = Path(__file__).resolve().parent.parent
+        self.schema_file = Path(schema_file) if schema_file else backend_dir / "data" / "erp_schema_dump.sql"
+        self.prompt_loader = prompt_loader or PromptLoader()
+        self.prompt_name = prompt_name
         self.all_schemas = self._load_all_schemas()
     
     def _load_all_schemas(self) -> Dict[str, str]:
@@ -19,7 +29,7 @@ class PromptBuilder:
         schemas = {}
         
         try:
-            with open(self.schema_file, 'r') as f:
+            with open(self.schema_file, 'r', encoding='utf-8') as f:
                 content = f.read()
             
             # Extract all CREATE TABLE statements
@@ -42,7 +52,14 @@ class PromptBuilder:
         """Get CREATE TABLE statement for a specific table"""
         return self.all_schemas.get(table_name, f"-- Table {table_name} not found")
 
-    def build_prompt(self, user_query: str, table_names: List[str]) -> str:
+    def build_prompt(
+        self,
+        user_query: str,
+        table_names: List[str],
+        *,
+        golden_examples_text: Optional[str] = None,
+        table_selection_notes: Optional[str] = None,
+    ) -> str:
         """
         Build a prompt for SQL generation
 
@@ -62,28 +79,13 @@ class PromptBuilder:
 
         schemas_text = "\n\n".join(schemas)
 
-        prompt = f"""You are an expert SQL developer. Given the following database schemas, write a SQL query to answer the user's question.
-
-IMPORTANT RULES:
-1. Only use the tables provided below
-2. Use proper JOINs to connect related tables
-3. Use WHERE clauses for filtering
-4. Use GROUP BY and aggregate functions (SUM, COUNT, AVG) when needed
-5. Return only the SQL query, no explanations
-6. Use SQLite syntax
-7. Do NOT use CREATE, DROP, DELETE, UPDATE, or INSERT statements
-8. Do NOT use subqueries unless necessary
-9. Limit results to 1000 rows
-10. For row-count questions (for example: how many, count, total number), prefer COUNT(*) over COUNT(id) unless the user explicitly asks for non-null values in a specific column
-
-DATABASE SCHEMAS:
-{schemas_text}
-
-USER QUESTION: {user_query}
-
-SQL QUERY:"""
-
-        return prompt
+        return self.prompt_loader.render_prompt(
+            self.prompt_name,
+            schemas_text=schemas_text,
+            user_query=user_query,
+            golden_examples_text=golden_examples_text or "None",
+            table_selection_notes=table_selection_notes or "Use the provided tables conservatively and only join related tables when needed.",
+        )
 
     def build_safe_prompt(self, user_query: str, table_names: List[str]) -> str:
         """

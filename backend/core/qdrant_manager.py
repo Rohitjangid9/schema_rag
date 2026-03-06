@@ -31,10 +31,10 @@ class QdrantManager:
 
         self.embedding_client = OpenAI(
             api_key=self.api_key,
-            base_url="https://integrate.api.nvidia.com/v1"
+            base_url=os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
         )
-        self.embedding_model = "nvidia/llama-3.2-nv-embedqa-1b-v2"
-        self.embedding_dim = 2048  # Dimension of NV-EmbedQA model
+        self.embedding_model = os.getenv("NVIDIA_EMBEDDING_MODEL", "nvidia/llama-3.2-nv-embedqa-1b-v2")
+        self.embedding_dim = int(os.getenv("NVIDIA_EMBEDDING_DIM", "2048"))  # Dimension of NV-EmbedQA model
 
         print(f"✓ Connected to Qdrant at {host}:{port}")
         print(f"✓ Using NVIDIA embedding model: {self.embedding_model}")
